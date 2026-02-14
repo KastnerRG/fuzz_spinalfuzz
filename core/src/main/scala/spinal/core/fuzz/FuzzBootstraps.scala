@@ -33,6 +33,7 @@ import spinal.sim._
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.util.Random
+import scala.util.Try
 import sys.process._
 
 
@@ -365,19 +366,29 @@ case class SpinalFuzzConfig(
 
     println(f"[Progress] Verilator compilation for fuzzing started")
     val startAt = System.nanoTime()
+    val envFuzzTime = Option(System.getenv("SPINALFUZZ_TIME_SECS"))
+      .flatMap(value => Try(value.toInt).toOption)
+      .getOrElse(_fuzzTime)
+    val envWithSysChange = Option(System.getenv("SPINALFUZZ_SYS_CHANGE"))
+      .flatMap {
+        case "1" | "true" | "TRUE" | "True" => Some(true)
+        case "0" | "false" | "FALSE" | "False" => Some(false)
+        case _ => None
+      }
+      .getOrElse(_withSysChange)
     val vConfig = SpinalFuzzBackendConfig[T](
       rtl               = report,
       workspacePath     = s"${_workspacePath}/${_workspaceName}",
       workspaceName     = "src",
       optimisationLevel = _optimisationLevel,
-      fuzzTime          = _fuzzTime,
+      fuzzTime          = envFuzzTime,
       withWave          = _withWave,
       withLcov          = _withLcov,
       withLineCovOnly   = _withLineCovOnly,
       withToggleCovOnly = _withToggleCovOnly,
       withFileMode      = _withFileMode,
       withCrashes       = _withCrashes,
-      withSysChange     = _withSysChange,
+      withSysChange     = envWithSysChange,
       withInputCombined = _withInputCombined,
       withSleepStmnt    = _withSleepStmnt,
       withLlvm          = _withLlvm,
@@ -390,4 +401,3 @@ case class SpinalFuzzConfig(
   }
 
 }
-

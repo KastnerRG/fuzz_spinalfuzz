@@ -128,7 +128,7 @@ class FuzzBackend (config: FuzzBackendConfig) extends Backend{
     // compAFL => only entry of "whereis -b afl-g++
     var comp = "g++"
     if (config.withLlvm) comp = "clang++"
-    val stdParam = "-std=c++11"
+    val stdParam = "-std=c++14"
     val covParam = if (config.withLcov) "--coverage -DVM_COVERAGE=0" else "-DVM_COVERAGE=1"
     val trcParam = if (config.withWave) "-DVM_TRACE=1" else "-DVM_TRACE=0"
     val wnoParam = "-Wno-bool-operation -Wno-sign-compare -Wno-uninitialized -Wno-unused-parameter -Wno-unused-variable -Wno-shadow"
@@ -166,12 +166,13 @@ out.mkString("")}
 
 ${compAFL} ${commonParams} -c -o ${workspaceName}/verilated.o ${verilatedPath}/verilated.cpp 
 ${compAFL} ${commonParams} -c -o ${workspaceName}/verilated_cov.o ${verilatedPath}/verilated_cov.cpp 
+${compAFL} ${commonParams} -c -o ${workspaceName}/verilated_threads.o ${verilatedPath}/verilated_threads.cpp 
 ${if (config.withWave) s"""${compAFL} ${commonParams} -c -o ${workspaceName}/verilated_vcd_c.o ${verilatedPath}/verilated_vcd_c.cpp""" else ""}
 ${compAFL} ${commonParams} -c -o ${workspaceName}/main_afl_simple.o ${workspaceName}/main_afl_simple.cpp
 
 ${compAFL} ${commonParams} ${val out = for (filename <- hdlFileNames) 
   yield s"${workspaceName}/${filename}.o " 
-  out.mkString("")} ${workspaceName}/verilated.o ${if (config.withLcov) "" else s"${workspaceName}/verilated_cov.o"} ${if (config.withWave) s"${workspaceName}/verilated_vcd_c.o" else ""} ${workspaceName}/main_afl_simple.o -o bin/V${config.toplevelName}_fuzz
+  out.mkString("")} ${workspaceName}/verilated.o ${workspaceName}/verilated_threads.o ${if (config.withLcov) "" else s"${workspaceName}/verilated_cov.o"} ${if (config.withWave) s"${workspaceName}/verilated_vcd_c.o" else ""} ${workspaceName}/main_afl_simple.o -latomic -o bin/V${config.toplevelName}_fuzz
 """
 
     println("Compile cpp files")
@@ -821,8 +822,7 @@ sleep_stmt = "S"
 
           for (file <- diffList) {
             val id = queueFileIdPattern.findFirstMatchIn(file.toString).get.group(1)
-            //println((s"cat ../../${file}" #| s"${workspacePath}/bin/V${config.toplevelName}_fuzz pp").!!)
-            Process(Seq("/bin/sh","-c",s"cat ../../${file} | bin/V${config.toplevelName}_fuzz pp"), new File(workspacePath)).!!
+            Process(Seq("/bin/sh","-c",s"cat '${file.getAbsolutePath}' | bin/V${config.toplevelName}_fuzz pp"), new File(workspacePath)).!!
             FileUtils.copyFile(new File (s"${workspacePath}/cov/logs/coverage.dat"), new File (s"${workspacePath}/cov/tmp/coverage${id}.dat"))
             fileListDone += file
           }
@@ -903,7 +903,7 @@ do
     hd -v "$$TESTCASE" >> "$$LOG"
     cat "$$TESTCASE" | bin/V${config.toplevelName}_fuzz pp >> "$$LOG"
     mv cov/logs/coverage.dat cov/logs/coverage$$ID.dat
-    mv wave.vcd cov/trace/wave$$ID.vcd
+    ${if (config.withWave) "mv wave.vcd cov/trace/wave$$ID.vcd" else ""}
     ID=$$((ID+1))
 done
 
@@ -953,7 +953,7 @@ if [ ! -z "$$(ls -A fuzz/default/crashes)" ]; then
        echo "execute crash $$ID"
        cat "$$CRASH" | bin/V${config.toplevelName}_fuzz pp >> "$$CRASHLOG"
        mv cov/crashes/coverage.dat cov/crashes/coverage$$ID.dat
-       mv wave.vcd cov/crashes/wave$$ID.vcd
+       ${if (config.withWave) "mv wave.vcd cov/crashes/wave$$ID.vcd" else ""}
        
        verilator_coverage --annotate cov/crashes/annotation cov/crashes/coverage$$ID.dat
        mv cov/crashes/annotation/${config.toplevelName}.v cov/crashes/annotation/${config.toplevelName}_crash$$ID.v

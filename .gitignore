@@ -1,3 +1,6 @@
+example_*
+dumps
+
 *.class
 *.log
 *.bak
