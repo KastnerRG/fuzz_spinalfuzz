@@ -27,9 +27,14 @@ object GCDFuzz {
 
   var data_width : Int = 32
   def main(args: Array[String]) {
+    val fuzzTimeSecs = sys.env
+      .get("EXAMPLE_TIME_SECS")
+      .flatMap(v => scala.util.Try(v.toInt).toOption)
+      .getOrElse(3600)
+
     FuzzConfig
 //      .withConfig(SpinalConfigDebug)
-      .fuzzTime(3600) // in seconds
+      .fuzzTime(fuzzTimeSecs) // in seconds
       .withInputCombined
       .withSleepStmnt
       .withLlvm
