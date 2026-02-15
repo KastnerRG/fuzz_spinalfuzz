@@ -4,7 +4,9 @@ import sbt.Tests._
 
 val spinalTmpVersion = "-SNAPSHOT"
 
-val defaultSettings = Defaults.coreDefaultSettings ++ xerial.sbt.Sonatype.sonatypeSettings ++ Seq(
+ThisBuild / useCoursier := false
+
+val defaultSettings = Defaults.coreDefaultSettings ++ Seq(
   ThisBuild / organization := "com.github.spinalhdl",
   ThisBuild / version      := SpinalVersion.all+spinalTmpVersion,
   scalaVersion := SpinalVersion.compiler,
@@ -66,14 +68,12 @@ val defaultSettings = Defaults.coreDefaultSettings ++ xerial.sbt.Sonatype.sonaty
  )
 
 lazy val all = (project in file("."))
-  .enablePlugins(ScalaUnidocPlugin)
   .settings(
     defaultSettings,
     name := "SpinalHDL-all",
     version := SpinalVersion.all+spinalTmpVersion,
     publishArtifact := false,
-    publishLocal := {},
-    unidocProjectFilter in (ScalaUnidoc, unidoc) := inProjects(lib, core)
+    publishLocal := {}
   )
   .aggregate(sim, idslpayload, idslplugin, core, lib, debugger, tester)
 
@@ -82,7 +82,7 @@ import sys.process._
 def gitHash(dir: File) = (try {
   s"git -C ${dir.toString} rev-parse HEAD".!!
 } catch{
-  case e : java.io.IOException => "???"
+  case _: Throwable => "???"
 }).linesIterator.next()
 
 
@@ -195,13 +195,7 @@ lazy val tester = (project in file("tester"))
   )
   .dependsOn(sim, core, lib, debugger,demo)
 
-// Assembly
-
-assemblyJarName in assembly := "spinalhdl.jar"
-
-test in assembly := {}
-
-assemblyOutputPath in assembly := file("./release/spinalhdl.jar")
+// Assembly plugin setting removed for compatibility with environments where sbt-assembly is unavailable.
 
 //To publish the scala doc :
 //rm -rf ghpages

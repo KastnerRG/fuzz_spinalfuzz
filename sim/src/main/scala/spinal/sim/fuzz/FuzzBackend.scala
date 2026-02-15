@@ -128,7 +128,7 @@ class FuzzBackend (config: FuzzBackendConfig) extends Backend{
     // compAFL => only entry of "whereis -b afl-g++
     var comp = "g++"
     if (config.withLlvm) comp = "clang++"
-    val stdParam = "-std=c++11"
+    val stdParam = "-std=c++14"
     val covParam = if (config.withLcov) "--coverage -DVM_COVERAGE=0" else "-DVM_COVERAGE=1"
     val trcParam = if (config.withWave) "-DVM_TRACE=1" else "-DVM_TRACE=0"
     val wnoParam = "-Wno-bool-operation -Wno-sign-compare -Wno-uninitialized -Wno-unused-parameter -Wno-unused-variable -Wno-shadow"
@@ -158,6 +158,7 @@ out.mkString("")}
 
 #${compAFL} ${commonParams} -S -o ${workspaceName}/verilated.ll ${verilatedPath}/verilated.cpp 
 #${compAFL} ${commonParams} -S -o ${workspaceName}/verilated_cov.ll ${verilatedPath}/verilated_cov.cpp 
+#${compAFL} ${commonParams} -S -o ${workspaceName}/verilated_threads.ll ${verilatedPath}/verilated_threads.cpp 
 #${compAFL} ${commonParams} -S -o ${workspaceName}/main_afl_simple.ll ${workspaceName}/main_afl_simple.cpp
 
 ${val out = for (filename <- hdlFileNames)
@@ -166,12 +167,13 @@ out.mkString("")}
 
 ${compAFL} ${commonParams} -c -o ${workspaceName}/verilated.o ${verilatedPath}/verilated.cpp 
 ${compAFL} ${commonParams} -c -o ${workspaceName}/verilated_cov.o ${verilatedPath}/verilated_cov.cpp 
+${compAFL} ${commonParams} -c -o ${workspaceName}/verilated_threads.o ${verilatedPath}/verilated_threads.cpp 
 ${if (config.withWave) s"""${compAFL} ${commonParams} -c -o ${workspaceName}/verilated_vcd_c.o ${verilatedPath}/verilated_vcd_c.cpp""" else ""}
 ${compAFL} ${commonParams} -c -o ${workspaceName}/main_afl_simple.o ${workspaceName}/main_afl_simple.cpp
 
 ${compAFL} ${commonParams} ${val out = for (filename <- hdlFileNames) 
   yield s"${workspaceName}/${filename}.o " 
-  out.mkString("")} ${workspaceName}/verilated.o ${if (config.withLcov) "" else s"${workspaceName}/verilated_cov.o"} ${if (config.withWave) s"${workspaceName}/verilated_vcd_c.o" else ""} ${workspaceName}/main_afl_simple.o -o bin/V${config.toplevelName}_fuzz
+  out.mkString("")} ${workspaceName}/verilated.o ${if (config.withLcov) "" else s"${workspaceName}/verilated_cov.o"} ${workspaceName}/verilated_threads.o ${if (config.withWave) s"${workspaceName}/verilated_vcd_c.o" else ""} ${workspaceName}/main_afl_simple.o -latomic -o bin/V${config.toplevelName}_fuzz
 """
 
     println("Compile cpp files")
@@ -736,15 +738,22 @@ sleep_stmt = "S"
 
     // setup system for afl_fuzz (command: afl-system-config) and execute the fuzzer
     var aflSettings = "1"
+    var useSysChange = config.withSysChange
     if (config.withSysChange) {
-      println("Enter system password to continue: ")
-      println(Process("sudo afl-system-config", new File(workspacePath)).!!)
-      aflSettings = "0"
+      val hasSudo = Process(Seq("bash", "-lc", "command -v sudo >/dev/null 2>&1"), new File(workspacePath)).! == 0
+      if (hasSudo) {
+        println("Enter system password to continue: ")
+        println(Process("sudo afl-system-config", new File(workspacePath)).!!)
+        aflSettings = "0"
+      } else {
+        println("sudo not found; skip afl-system-config and continue with AFL compatibility env vars")
+        useSysChange = false
+      }
     }
     println("Start fuzzer")
     println("Command: "+newTerminal+" "+aflCommand+" "+aflCommandAddon)
     var fuzzProcess : Process = null
-    if (config.withSysChange) {
+    if (useSysChange) {
       // AFL_DISABLE_TRIM
       // AFL_CUSTOM_MUTATOR_ONLY
       //"AFL_CUSTOM_MUTATOR_LIBRARY" -> "/home/ruep/AFLplusplus/custom_mutators/examples/double_n_rand_mutator.so"
