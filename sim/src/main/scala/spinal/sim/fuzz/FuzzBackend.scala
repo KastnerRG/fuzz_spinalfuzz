@@ -381,7 +381,6 @@ ${val clkNext = for (name <- config.clockNames)
 ${if (config.withInputCombined) "}" else ""}
 ${if (withSleepStatement) s"""      uint8_t cnt;
       cin.read(reinterpret_cast<char*>(&cnt), sizeof(cnt));
-      nextCycle(&top->clk,cnt);
       cout << "Sleep for " << (int)cnt << " cycles \\n";
 """ else """      cout << "Sleep for 1 cycle \\n";"""}
 ${if (withSleepStatement) {
